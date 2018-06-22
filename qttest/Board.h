@@ -11,21 +11,19 @@
 #define MOVE_MAX  MAX_SIZE * MAX_SIZE + 2
 #define BOARD_MOVE_MAX MAX_SIZE * MAX_SIZE * 2
 
-// Simple List
-//ls[0]记录列表长度
-inline void SLIST_CLEAR(int *ls) { ls[0] = 0; }
-inline void SLIST_PUSH(int *ls, int i) { ls[++ls[0]] = i; }
-inline int SLIST_POP(int *ls) { return ls[ls[0]--]; }
-inline void SLIST_ADD(int *ls, int i) {
+inline void _CLEAR(int *ls) { ls[0] = 0; }
+inline void _PUSH(int *ls, int i) { ls[++ls[0]] = i; }
+inline int _POP(int *ls) { return ls[ls[0]--]; }
+inline void _ADD(int *ls, int i) {
     for (int k = 1; k <= ls[0]; k++) if (ls[k] == i) return;
     ls[++ls[0]] = i; }
-inline void SLIST_DELETE(int *ls, int t) { ls[t] = ls[ls[0]--]; } //第t项等于被删除的最后一项
-inline int SLIST_RAND(int *ls) { return rand() % ls[0] + 1; }
-inline void SLIST_MERGE(int *ls, int *ls2) //合并
+inline void _DELETE(int *ls, int t) { ls[t] = ls[ls[0]--]; } //第t项等于被删除的最后一项
+inline int _RAND(int *ls) { return rand() % ls[0] + 1; } //返回一个随机下标
+inline void _MERGE(int *ls, int *ls2) //合并
 {
     for (int k = 1; k <= ls2[0]; k++) ls[++ls[0]] = ls2[k]; 
 }
-inline void SLIST_PRINT(int *ls) 
+inline void _PRINT(int *ls) 
 {
     for (int k = 1; k <= ls[0]; k++) printf("%d ", ls[k]); printf("\n"); 
 }
@@ -63,29 +61,29 @@ public:
         return color ^ 3;
     }
 
-    struct State
+    struct BoardState
     {
-        int Table[BOARD_MAX]; //enum Color
+        int ColorTable[BOARD_MAX]; //enum Color
         int Ko, Turn, Pass; //Ko打劫 Turn轮到谁下 Pass累计Pass次数
     };
 
-    struct Status
+    struct BStatus
     {
         QColor Color;
         int Move;
         int Label;
     };
 
-    struct GoProp
+    struct GoOperation
     {
         int Label, Value;
         int Col, Row;
 		int Move;
     };
 
-    struct GoNode // Record
+    struct GoNode // 记录
     {
-        std::vector<GoProp> Prop;
+        std::vector<GoOperation> Prop;
         QString Text;
         int Ko, Turn, Pass;
     };
@@ -118,7 +116,7 @@ public:
 
     int GetProp(QString &str, int i, int j);
     QString GetText(QString &str, int i, int j);
-    GoProp MakeProp(int label, int value, int x, int y, int index = 0);
+    GoOperation MakeProp(int label, int value, int x, int y, int index = 0);
 
     int Start();
     int Forward(int k = 1);
@@ -126,8 +124,8 @@ public:
     int Undo(int k = 1);
 
     void Cut();
-    void Rand();
-    void Rand(int total);
+    void Judge();
+    void Judge(int total);
 
     int Width, Height, Size;
     int Path;
@@ -149,9 +147,11 @@ public:
     int DATA_WIDTH, DATA_HEIGHT;
     int DATA_START, DATA_END;
 
-    Status Status[BOARD_MAX];
+	double shift[MAX_SIZE];
+
+    BStatus Status[BOARD_MAX];
     Tree Record, Record2;
-    State State;
+    BoardState State;
 
     QString BOARD_EVENT, BOARD_DATE;
     QString PLAYER_BLACK, PLAYER_WHITE;

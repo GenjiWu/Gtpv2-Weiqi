@@ -47,7 +47,7 @@ void Board::Reset()
 
 void Board::Clear()
 {
-    State.Table[DATA_WIDTH * DATA_HEIGHT] = OUT; //?
+    State.ColorTable[DATA_WIDTH * DATA_HEIGHT] = OUT; //?
     State.Ko = 0, State.Pass = 0, State.Turn = BLACK;
     Record.Index = 0, Record2.Index = -1;
 
@@ -55,8 +55,8 @@ void Board::Clear()
 
     for (int i = 1, k = 0; i <= DATA_HEIGHT; i++) {
         for (int j = 1; j <= DATA_WIDTH; j++, k++) {
-            if (i == 1 || i == DATA_HEIGHT || j == 1) State.Table[k] = OUT;
-            else State.Table[k] = EMPTY;
+            if (i == 1 || i == DATA_HEIGHT || j == 1) State.ColorTable[k] = OUT;
+            else State.ColorTable[k] = EMPTY;
         }
     }
 
@@ -81,7 +81,7 @@ int Board::GetPoint(int x, int y)
 
 int Board::GetColor(int x, int y)
 {
-    return State.Table[GetPoint(x, y)];
+    return State.ColorTable[GetPoint(x, y)];
 }
 
 int Board::SetHandicap(int n) //设置让子
@@ -89,16 +89,16 @@ int Board::SetHandicap(int n) //设置让子
     if (n < 2 || n > 9) return 0;
 
     BOARD_HANDICAP = QString::number(n);
-    SLIST_CLEAR(Handicap);
+    _CLEAR(Handicap);
 
     for (int i = 0; i < n; i++) {
         if (i >= 4 && (n == 6 || n == 8)) {
-            SLIST_PUSH(Handicap, Star[(i + 1) * 2]);
-            SLIST_PUSH(Handicap, Star[(i + 1) * 2 + 1]);
+            _PUSH(Handicap, Star[(i + 1) * 2]);
+            _PUSH(Handicap, Star[(i + 1) * 2 + 1]);
         }
         else {
-            SLIST_PUSH(Handicap, Star[i * 2]);
-            SLIST_PUSH(Handicap, Star[i * 2 + 1]);
+            _PUSH(Handicap, Star[i * 2]);
+            _PUSH(Handicap, Star[i * 2 + 1]);
         }
     }
 
@@ -114,26 +114,26 @@ int Board::CheckBound(int x, int y) //检查边界，是否在棋盘中
     return (x >= 0 && x < Width && y >= 0 && y < Height);
 }
 
-//此函数存在局限性：在四周都为空时不能直接使用，不检测打劫，仅检测是否入气和xy是否合法
+//此函数在四周都为空时不能直接使用，不检测打劫，仅检测是否入气和xy是否合法
 int Board::Add(int x, int y, int color) //添加棋子
 {
     int current = 0;
     if (CheckBound(x, y)) {
         current = GetPoint(x, y);
-        if (State.Table[current] != EMPTY) return 0;
+        if (State.ColorTable[current] != EMPTY) return 0;
     }
     else return 0;
 
     int other = OtherColor(color);
     int cp = 0;
 
-    State.Table[current] = color;
+    State.ColorTable[current] = color;
     Record.Node.back().Prop.push_back(MakeProp(TOKEN_ADD, color, x, y));
     Status[current].Move = 0;
 
     for (int i = 0; i < 4; i++) {
         int around = current + Side[i];
-        if (State.Table[around] == other) //如果周围都是对方棋子，则检测此步能否移除对方棋子
+        if (State.ColorTable[around] == other) //如果周围都是对方棋子，则检测此步能否移除对方棋子
 		{
             cp += Remove(around, other, Record.Node.back()); //around所在整块棋如果没有被提，Remove返回0
         }
@@ -145,18 +145,18 @@ int Board::Add(int x, int y, int color) //添加棋子
     return 1;
 }
 
-// Play Board at z for color with bound, ko and empty check
+// 在z处落子，包括边界，打劫和空格检测
 int Board::Play(int x, int y, int color, int mode)
 {
     int current = 0;
 
     if (CheckBound(x, y)) {
         current = GetPoint(x, y);
-        if (State.Table[current] != EMPTY || current == State.Ko) return 0; //有子或在打劫
+        if (State.ColorTable[current] != EMPTY || current == State.Ko) return 0; //有子或在打劫
     }
 
     if (mode && Record2.Index < 0)
-        Record2 = Record; // backup for test play
+        Record2 = Record; 
 
     Cut(); //树剪枝
 
@@ -171,8 +171,8 @@ int Board::Play(int x, int y, int color, int mode)
     }
     else {
         State.Pass = 0;
-        State.Table[current] = color;
-        GoProp Prop = MakeProp(TOKEN_PLAY, color, x, y, Record.Index + 1);
+        State.ColorTable[current] = color;
+        GoOperation Prop = MakeProp(TOKEN_PLAY, color, x, y, Record.Index + 1);
         node.Prop.push_back(Prop);
         Status[current].Move = Prop.Move;
 
@@ -180,12 +180,12 @@ int Board::Play(int x, int y, int color, int mode)
         int size, Ko = 0, cp = 0;
 
         for (int i = 0; i < 4; i++) // 周围状况检测，只要有一个是enum Color中的某一种，对应的r[]就等于1
-            r[State.Table[current + Side[i]]] = 1;
+            r[State.ColorTable[current + Side[i]]] = 1;
 
         for (int i = 0; i < 4; i++) //检测四周是否有棋子能被提掉
 		{
             int around = current + Side[i];
-            if (State.Table[around] == other) 
+            if (State.ColorTable[around] == other) 
 			{
                 size = Remove(around, other, node); //提掉1个子时返回1
                 if (size == 1) 
@@ -227,27 +227,27 @@ int Board::Remove(int z, int color, GoNode &node)
     Path++;
     Mark[z] = Path; //有几个棋子连在一起？
 
-    SLIST_CLEAR(Block);
-    SLIST_PUSH(Block, z); // point to check
+    _CLEAR(Block);
+    _PUSH(Block, z); // 需要检查的点
 
     for (int n = 1; n <= Block[0]; n++) {
         int current = Block[n];
         for (int i = 0; i < 4; i++) {
             int around = current + Side[i];
-            int state_around = State.Table[around];
+            int state_around = State.ColorTable[around];
             if (state_around == EMPTY) 
 				return 0; // 周围有气，不能移除，退出函数
             if (state_around == color && Mark[around] != Path) // 周围同色，且没有被统计
 			{
                 Mark[around] = Path; //把该点算入同一块棋
-                SLIST_PUSH(Block, around); //把该点加入检测
+                _PUSH(Block, around); //把该点加入检测
             }
         }
     }
 	//当被移除点所在的整块棋都检测完成且没有气时，进入下一个循环,移除这块棋
     for (int n = 1; n <= Block[0]; n++) {
         int current_ = Block[n];
-        State.Table[current_] = EMPTY; //移除
+        State.ColorTable[current_] = EMPTY; //移除
         int y = current_ / DATA_WIDTH;
         int x = current_ - y * DATA_WIDTH;
         node.Prop.push_back(MakeProp(TOKEN_TAKE, color, x - 1, y - 1, Status[z].Move));
@@ -261,53 +261,53 @@ int Board::CheckRemove(int z, int color)
     Path++;
     Mark[z] = Path;
 
-    SLIST_CLEAR(Block);
-    SLIST_PUSH(Block, z); // point to check
+    _CLEAR(Block);
+    _PUSH(Block, z); // 需要检查的点
 
     for (int n = 1; n <= Block[0]; n++) {
         int k = Block[n];
         for (int i = 0; i < 4; i++) {
             int k2 = k + Side[i];
-            int p = State.Table[k2];
+            int p = State.ColorTable[k2];
             if (p == EMPTY) 
-				return 0; // liberty
+				return 0; // 气
             if (p == color && Mark[k2] != Path) 
 			{
                 Mark[k2] = Path;
-                SLIST_PUSH(Block, k2);
+                _PUSH(Block, k2);
             }
         }
     }
 
     for (int n = 1; n <= Block[0]; n++) {
         int k = Block[n];
-        State.Table[k] = EMPTY;
-        SLIST_PUSH(Move, k);
+        State.ColorTable[k] = EMPTY;
+        _PUSH(Move, k);
     }
 
     return Block[0];
 }
 
-// Play Board at z and returns 1 if ko or fill eye
+// 在z落子，如果打劫或不入气返回1
 int Board::CheckPlay(int z, int color, int other)
 {
     if (z == State.Ko) return 1;
     int r[4] = { 0, 0, 0, 0 };
-    for (int i = 0; i < 4; i++) // round check
-        r[State.Table[z + Side[i]]] = 1;
-    if (r[0] == 0 && r[other] == 0) // fill eye
+    for (int i = 0; i < 4; i++) // 周围检测
+        r[State.ColorTable[z + Side[i]]] = 1;
+    if (r[0] == 0 && r[other] == 0) // 填眼
         return 1;
 
-    State.Table[z] = color;
+    State.ColorTable[z] = color;
     int size, Ko = 0, cp = 0;
 
     for (int i = 0; i < 4; i++) {
         int k = z + Side[i];
-        if (State.Table[k] == other) {
+        if (State.ColorTable[k] == other) {
             size = CheckRemove(k, other);
             if (size == 1) {
                 Ko = 1;
-                State.Ko = k; // may be ko
+                State.Ko = k; // 可能打劫
             }
             cp = cp | size;
         }
@@ -315,8 +315,8 @@ int Board::CheckPlay(int z, int color, int other)
 
     if (cp == 0) {
         if (r[0] == 0 && r[color] == 0) 
-		{ // fill eye and suicde
-            State.Table[z] = EMPTY;
+		{ // 填眼自杀
+            State.ColorTable[z] = EMPTY;
             return 1;
         }
         CheckRemove(z, color);
@@ -327,7 +327,7 @@ int Board::CheckPlay(int z, int color, int other)
     return 0;
 }
 
-void Board::Rand()
+void Board::Judge()
 {
     int color = State.Turn;
     int other = OtherColor(color);
@@ -337,12 +337,12 @@ void Board::Rand()
 
     ClearMark();
 
-    SLIST_CLEAR(Move);
-    SLIST_CLEAR(Move2);
+    _CLEAR(Move);
+    _CLEAR(Move2);
 
     for (int i = DATA_START; i <= DATA_END; i++)
-        if (State.Table[i] == EMPTY) 
-			SLIST_PUSH(Move, i); // empty moves
+        if (State.ColorTable[i] == EMPTY) 
+			_PUSH(Move, i); // 空Move
 
     State.Pass = 0;
 
@@ -354,49 +354,49 @@ void Board::Rand()
             State.Ko = 0;
         }
         else {
-            int i = SLIST_RAND(Move);
+            int i = _RAND(Move);
             if (CheckPlay(Move[i], color, other)) 
 			{
-                SLIST_PUSH(Move2, Move[i]);
-                SLIST_DELETE(Move, i);
+                _PUSH(Move2, Move[i]);
+                _DELETE(Move, i);
                 continue;
             }
 
-            SLIST_DELETE(Move, i);
+            _DELETE(Move, i);
         }
 
-        SLIST_MERGE(Move, Move2);
-        SLIST_CLEAR(Move2);
+        _MERGE(Move, Move2);
+        _CLEAR(Move2);
         other = color;
         color = OtherColor(color);
     }
 }
 
-void Board::Rand(int total)
+void Board::Judge(int total)
 {
-    struct State State2 = State;
+    struct BoardState State2 = State;
     int Count[BOARD_MAX];
     memset(Count, 0, sizeof(Mark));
 
     for (int n = 0; n < total; n++) {
-        Rand();
+        Judge();
         for (int i = DATA_START; i <= DATA_END; i++) 
 		{ 
-			// update result
-            int k = State.Table[i];
+			// 更新结果
+            int k = State.ColorTable[i];
             if (k == BLACK) 
 				Count[i]++;
             else if (k == WHITE)
 				Count[i]--;
             else if (k == EMPTY) 
 			{
-                int k2 = State.Table[i+1];
+                int k2 = State.ColorTable[i+1];
                 if (k2 == BLACK)
 					Count[i]++;   
                 else if (k2 == WHITE) 
 					Count[i]--;
                 else {
-                    k2 = State.Table[i-1];
+                    k2 = State.ColorTable[i-1];
                     if (k2 == BLACK)
 						Count[i]++;
                     else 
@@ -407,28 +407,32 @@ void Board::Rand(int total)
         State = State2;
     }
 
-    // Find largest value in block and set block to that value
+    // 找到block中最大值并将block设置为这个值
     ClearMark();
 
-    for (int i = DATA_START; i <= DATA_END; i++) {
-        int k = State.Table[i];
-        if ((k == BLACK || k == WHITE) && Mark[i] == 0) { // not visit
+    for (int i = DATA_START; i <= DATA_END; i++) 
+	{
+        int k = State.ColorTable[i];
+        if ((k == BLACK || k == WHITE) && Mark[i] == 0) 
+		{ // not visit
             Path++;
             Mark[i] = Path;
-            SLIST_CLEAR(Block);
-            SLIST_PUSH(Block, i);
+            _CLEAR(Block);
+            _PUSH(Block, i);
             int Value = (k == BLACK ? -total : total);
 
-            for (int n = 1; n <= Block[0]; n++) {
+            for (int n = 1; n <= Block[0]; n++) 
+			{
                 int score = Count[Block[n]];
                 if ((k == BLACK && score > Value) ||
                     (k == WHITE && score < Value)) Value = score;
                 for (int d = 0; d < 4; d++) {
                     int i2 = Block[n] + Side[d];
-                    int k2 = State.Table[i2];
-                    if (k2 == k && Mark[i2] == 0) { // not vist
+                    int k2 = State.ColorTable[i2];
+                    if (k2 == k && Mark[i2] == 0) 
+					 { // not visit
                         Mark[i2] = Path;
-                        SLIST_PUSH(Block, i2);
+                        _PUSH(Block, i2);
                     }
                 }
             }
@@ -446,13 +450,13 @@ void Board::Rand(int total)
         for (int i = 1; i <= DATA_WIDTH; i++, k++) {
             if (j != 1 && j != DATA_HEIGHT && i != 1) {
                 double d = (double) Count[k] / total;
-                if (d >= 0.1) { // black
-                    Status[k].Label = (State.Table[k] == WHITE ? WHITE_DEAD : BLACK_AREA);
+                if (d >= 0.1) { // 黑
+                    Status[k].Label = (State.ColorTable[k] == WHITE ? WHITE_DEAD : BLACK_AREA);
                     Status[k].Color = (d >= 0.5 ? QColor(128, 0, 0, 128) : QColor(64, 0, 0, 64));
                     BLACK_SCORE++;
                 }
-                else if (d <= -0.1) { // white
-                    Status[k].Label = (State.Table[k] == BLACK ? BLACK_DEAD : WHITE_AREA);
+                else if (d <= -0.1) { // 白
+                    Status[k].Label = (State.ColorTable[k] == BLACK ? BLACK_DEAD : WHITE_AREA);
                     Status[k].Color = (d <= -0.5 ? QColor(255, 255, 255, 128) : QColor(255, 255, 255, 64));
                     WHITE_SCORE++;
                 }
@@ -494,11 +498,11 @@ int Board::Undo(int k)
 
     while (Record.Index && k) {
         for (int i = Record.Node[Record.Index].Prop.size() - 1; i >= 0; i--) {
-            GoProp Prop = Record.Node[Record.Index].Prop[i];
+            GoOperation Prop = Record.Node[Record.Index].Prop[i];
             if (Prop.Label == TOKEN_PLAY || Prop.Label == TOKEN_ADD)
-                State.Table[GetPoint(Prop.Col, Prop.Row)] = 0;
+                State.ColorTable[GetPoint(Prop.Col, Prop.Row)] = 0;
             else if (Prop.Label == TOKEN_TAKE)
-                State.Table[GetPoint(Prop.Col, Prop.Row)] = Prop.Value;
+                State.ColorTable[GetPoint(Prop.Col, Prop.Row)] = Prop.Value;
         }
 
         Record.Index--; k--;
@@ -506,7 +510,7 @@ int Board::Undo(int k)
         State.Pass = Record.Node[Record.Index].Pass;
 
         if (Record.Index == Record2.Index) {
-            Record = Record2; // restore from test play
+            Record = Record2; // 从试下恢复
             Record2.Index = -1;
         }
     }
@@ -526,15 +530,15 @@ int Board::Forward(int k)
         State.Pass = Record.Node[Record.Index].Pass;
 
         for (int i = 0; i < total; i++) {
-            GoProp Prop = Record.Node[Record.Index].Prop[i];
+            GoOperation Prop = Record.Node[Record.Index].Prop[i];
             int z = GetPoint(Prop.Col, Prop.Row);
 
             if (Prop.Label == TOKEN_PLAY || Prop.Label == TOKEN_ADD) {
-                State.Table[z] = Prop.Value;
+                State.ColorTable[z] = Prop.Value;
                 Status[z].Move = Prop.Move;
             }
             else if (Prop.Label == TOKEN_TAKE) {
-                State.Table[z] = 0;
+                State.ColorTable[z] = 0;
             }
         }
 
@@ -550,9 +554,9 @@ void Board::Cut()
     while (n--) Record.Node.pop_back();
 }
 
-Board::GoProp Board::MakeProp(int label, int value, int x, int y, int index)
+Board::GoOperation Board::MakeProp(int label, int value, int x, int y, int index)
 {
-    GoProp Prop;
+    GoOperation Prop;
 
     Prop.Label = label;
     Prop.Value = value;
@@ -637,39 +641,50 @@ int Board::Read(const QString &str, int k)
     BLACK_LEVEL.clear(); WHITE_LEVEL.clear();
     BOARD_HANDICAP.clear(); BOARD_RESULT.clear();
 
-    for (int i = 0; i < fsize; i++) {
+    for (int i = 0; i < fsize; i++) 
+	{
         QChar c = buffer[i];
 
-        if (c == '[' && v1 < 0) { // '[' not in []
+        if (c == '[' && v1 < 0) 
+		{ 
             v1 = i;
         }
-        else if (c == ')' && v1 < 0) { // ')' not in []
+        else if (c == ')' && v1 < 0) 
+		{ 
             break;
         }
-        else if (c == '\\') {
-            if (q >= 0 && i == q + 1) q = -2; // double slashes, ignore it. if q = -1 then i == q + 1 may be true
-            else q = i;                       // position of '\'
+        else if (c == '\\') 
+		{
+            if (q >= 0 && i == q + 1) q = -2; 
+            else q = i;                       
         }
-        else if (c == ']' && i != q + 1 && v1 >= 0) { // not '\]' and have '['
+        else if (c == ']' && i != q + 1 && v1 >= 0) 
+		{ 
             v2 = i;
-            if (p >= 0) token = GetProp(buffer, p, v1); // use previous token for second property
+            if (p >= 0) token = GetProp(buffer, p, v1); 
 
-            if (token == TOKEN_BLACK || token == TOKEN_WHITE) {
+            if (token == TOKEN_BLACK || token == TOKEN_WHITE) 
+			{
                 int color = (token == TOKEN_BLACK ? BLACK : WHITE);
-                if (v2 - v1 == 3) {
+                if (v2 - v1 == 3) 
+				{
                     Play(buffer[v1 + 1].toLower().toLatin1() - 'a', buffer[v1 + 2].toLower().toLatin1() - 'a', color);
                 }
-                else Play(-1, -1, color); // pass
+                else Play(-1, -1, color); 
             }
-            else if (token == TOKEN_ADD_BLACK || token == TOKEN_ADD_WHITE) {
+            else if (token == TOKEN_ADD_BLACK || token == TOKEN_ADD_WHITE) 
+			{
                 int color = (token == TOKEN_ADD_BLACK ? BLACK : WHITE);
-                if (v2 - v1 == 3) {
+                if (v2 - v1 == 3) 
+				{
                     Add(buffer[v1 + 1].toLower().toLatin1() - 'a', buffer[v1 + 2].toLower().toLatin1() - 'a', color);
                 }
             }
-            else if (token == TOKEN_LABEL) {
-                if (v2 - v1 >= 5 && buffer[v1 + 3] == ':') {
-                    GoProp Prop;
+            else if (token == TOKEN_LABEL) 
+			{
+                if (v2 - v1 >= 5 && buffer[v1 + 3] == ':') 
+				{
+                    GoOperation Prop;
                     Prop.Label = TOKEN_LABEL;
                     Prop.Value = buffer[v1 + 4].toLatin1();
                     Prop.Col = buffer[v1 + 1].toLower().toLatin1() - 'a';
@@ -677,20 +692,24 @@ int Board::Read(const QString &str, int k)
                     Record.Node[Record.Index].Prop.push_back(Prop);
                 }
             }
-            else if (token == TOKEN_MARK || token == TOKEN_TRIANGLE || token == TOKEN_CIRCLE || token == TOKEN_SQUARE) {
-                if (v2 - v1 == 3) {
-                    GoProp Prop;
+            else if (token == TOKEN_MARK || token == TOKEN_TRIANGLE || token == TOKEN_CIRCLE || token == TOKEN_SQUARE) 
+			{
+                if (v2 - v1 == 3) 
+				{
+                    GoOperation Prop;
                     Prop.Label = token;
                     Prop.Col = buffer[v1 + 1].toLower().toLatin1() - 'a';
                     Prop.Row = buffer[v1 + 2].toLower().toLatin1() - 'a';
                     Record.Node[Record.Index].Prop.push_back(Prop);
                 }
             }
-            else if (token == TOKEN_SIZE) {
+            else if (token == TOKEN_SIZE) 
+			{
                 Size = GetText(buffer, v1, v2).toInt();
                 Reset();
             }
-            else if (token == TOKEN_COMMENT) {
+            else if (token == TOKEN_COMMENT) 
+			{
                 QString Text = GetText(buffer, v1, v2);
                 Text.replace("\\\\", "\\");
                 Text.replace("\\]", "]");
@@ -706,22 +725,26 @@ int Board::Read(const QString &str, int k)
                 PLAYER_BLACK = GetText(buffer, v1, v2);
             else if (token == TOKEN_PLAY_WHITE)
                 PLAYER_WHITE = GetText(buffer, v1, v2);
-            else if (token == TOKEN_KOMI) {
+            else if (token == TOKEN_KOMI) 
+			{
                 BOARD_KOMI = GetText(buffer, v1, v2);
                 Komi = BOARD_KOMI.toDouble();
             }
-            else if (token == TOKEN_HANDICAP) {
+            else if (token == TOKEN_HANDICAP) 
+			{
                 BOARD_HANDICAP = GetText(buffer, v1, v2);
                 if (BOARD_HANDICAP.toInt() <= 1) BOARD_HANDICAP.clear();
             }
 
-            p = v1 = -1; // reset
+            p = v1 = -1; // 重置
         }
         else if (c == ' ' || c == '(' || c == ')' || c == ';' || c == '\n' || c == '\r' || c == '\f') {
 
         }
-        else {
-            if (p < 0 && v1 < 0) { // is reset
+        else 
+		{
+            if (p < 0 && v1 < 0) 
+			{ // is重置
                p = i;
             }
         }
@@ -747,7 +770,7 @@ int Board::Write(const QString &str)
         int token = TOKEN_NONE;
 
         for (int k = 0; k < Record.Node[i].Prop.size(); k++) {
-            GoProp Prop = Record.Node[i].Prop[k];
+            GoOperation Prop = Record.Node[i].Prop[k];
 
             if (Prop.Label == TOKEN_ADD) {
                 if (Prop.Value == BLACK) {

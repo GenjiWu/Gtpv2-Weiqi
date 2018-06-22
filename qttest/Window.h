@@ -54,10 +54,11 @@ public:
 
     int Read(const QString &file, int k = 0);
 
-    Board Child;
+    Board Child_Board;
     Player *Play[3];
 
-	
+	double shift[MAX_SIZE];
+	void initshift();
 
     enum
     {
@@ -109,14 +110,14 @@ public:
 	void TriggerMenuBar();
     void SetTitle(QString str = "");
 
-    Widget *Child;
+    Widget *Child_Widget;
     QString Title;
 	//Menu
 	QMenu* menu[10];
 	QAction* act[10];
 	QMenuBar* menuBar;
 	QStatusBar* status;
-
+	
 public slots:
 	void trigerMenu(QAction* act);
 
